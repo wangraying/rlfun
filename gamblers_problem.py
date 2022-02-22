@@ -14,9 +14,9 @@ class Agent:
 
     def possible_actions(self, state):
         # state: 1, 2, ..., 99
-        # actions: 0, 1, 2, ..., min(s, 100 - s)
+        # actions: 1, 2, ..., min(s, 100 - s)
         max_state = min(state, self._winning_capital - state)
-        return range(max_state + 1)
+        return range(1, max_state + 1)
 
     def possible_states(self):
         return self._possible_states
@@ -36,7 +36,7 @@ class Agent:
             for action in self.possible_actions(state)
         ]
         # exclude action 0
-        return np.argmax(action_values[1:]) + 1
+        return np.argmax(action_values) + 1
 
     def value_update(self, state, old_values):
         self._values[state] = max(
@@ -70,14 +70,13 @@ def value_iteration(agent, eps=1e-12):
 if __name__ == "__main__":
     fig = go.Figure()
 
-    probs = [
-        0.4,  # 0.25, 0.55
-    ]
+    probs = [0.4, 0.25, 0.55]
+    eps = [1e-8, 1e-5, 1e-4]
     fig = make_subplots(
-        rows=1,
+        rows=3,
         cols=2,
-        specs=[[{}, {}]],
-        subplot_titles=("Value Estimate", "Final Policy(stake)"),
+        specs=[[{}, {}], [{}, {}], [{}, {}]],
+        subplot_titles=("ph=0.4", "ph=0.4", "ph=0.25", "ph=0.25", "ph=0.55", "ph=0.55"),
     )
 
     selected_colors = [
@@ -94,7 +93,7 @@ if __name__ == "__main__":
     for i in range(len(probs)):
         prob_win = probs[i]
         agent = Agent(prob_win=prob_win, winning_capital=100)
-        ret = value_iteration(agent, eps=1e-5)
+        ret = value_iteration(agent, eps=eps[i])
 
         for sweep, value in enumerate(ret):
             fig.add_trace(
@@ -107,7 +106,7 @@ if __name__ == "__main__":
                         width=0.5,
                     ),
                 ),
-                row=1,
+                row=i + 1,
                 col=1,
             )
 
@@ -118,12 +117,16 @@ if __name__ == "__main__":
                 y=list(final_policy.values()),
                 line=dict(color="firebrick", width=0.5),
             ),
-            row=1,
+            row=i + 1,
             col=2,
         )
 
-    fig.update_layout(
-        title="Gambler's Problem", xaxis_title="Capital", yaxis_title="Value Estimates"
-    )
+    for row in [1, 2, 3]:
+        fig.update_xaxes(title_text="Capital", row=row, col=1)
+        fig.update_xaxes(title_text="Capital", row=row, col=2)
+        fig.update_yaxes(title_text="Value Estimates", row=row, col=1)
+        fig.update_yaxes(title_text="Final Policy(stake)", row=row, col=2)
+
+    fig.update_layout(title=f"Gambler's Problem", showlegend=False)
 
     fig.show()
