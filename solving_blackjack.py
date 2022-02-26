@@ -123,7 +123,7 @@ class Player:
         return self.current_sum() > 21
 
     def is_natural(self):
-        return self.current_sum() == 21 and self._num_ace > 0
+        return self.current_sum() == 21 and self._num_ace == 1
 
     def current_sum(self):
         return self._current_sum + 10 if self.usable_ace() else self._current_sum

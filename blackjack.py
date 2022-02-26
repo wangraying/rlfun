@@ -34,8 +34,6 @@ class Player:
 
         if is_ace(c):
             self._num_ace += 1
-            if self._current_sum + 10 <= 21:
-                self._current_sum += 10
         self._hands.append(c)
         return c
 
@@ -46,7 +44,10 @@ class Player:
         return self.current_sum() == 21 and self._num_ace == 1
 
     def current_sum(self):
-        return self._current_sum
+        return self._current_sum + 10 if self.usable_ace() else self._current_sum
+
+    def usable_ace(self):
+        return self._num_ace > 0 and (self._current_sum + 10 <= 21)
 
 
 class Dealer(Player):
@@ -68,11 +69,12 @@ def gen_episode(player, dealer):
         dealer.draw_card()
         player.draw_card()
 
+    states = [(player.usable_ace(), player.current_sum())]
     # End of episode when player has a natural
     if player.is_natural():
         logging.debug("player has a natural")
         # player wins unless dealer has natural
-        return 0 if dealer.is_natural() else 1
+        return states, (0 if dealer.is_natural() else 1)
 
     while not player.is_to_stick():
         player.draw_card()
@@ -80,7 +82,9 @@ def gen_episode(player, dealer):
         # End of episode when player goes bust (player loses)
         if player.is_bust():
             logging.debug(f"player goes bust, {player._hands}")
-            return -1
+            return states, -1
+
+        states.append((player.usable_ace(), player.current_sum()))
 
     # Dealer's turn when player sticks
     while not dealer.is_to_stick():
@@ -89,28 +93,12 @@ def gen_episode(player, dealer):
         # End of episode when dealer goes bust
         if dealer.is_bust():
             logging.debug(f"dealer goes bust, {dealer._hands}")
-            return 1
+            return states, 1
 
     if player.current_sum() == dealer.current_sum():
-        return 0
+        return states, 0
 
-    return 1 if player.current_sum() > dealer.current_sum() else -1
-
-
-def recover_states(player):
-    current_sum = 0
-    usable_ace = False
-    states = []
-
-    for c in player._hands:
-        current_sum += c
-        if is_ace(c):
-            if current_sum + 10 <= 21:
-                usable_ace = True
-                current_sum += 10
-
-        states.append((usable_ace and current_sum <= 21, current_sum))
-    return states
+    return states, (1 if player.current_sum() > dealer.current_sum() else -1)
 
 
 class AverageMeter:
@@ -136,8 +124,7 @@ if __name__ == "__main__":
     for i in range(num_episodes):
         player = Player()
         dealer = Dealer()
-        G = gen_episode(player, dealer)
-        player_states = recover_states(player)
+        player_states, G = gen_episode(player, dealer)
         verbose = 1 in player._hands
 
         for t, s in reversed(list(enumerate(player_states))):
