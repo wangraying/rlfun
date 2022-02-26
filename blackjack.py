@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 deck = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
 
 
-def draw_card():
+def random_card():
     # All face cards count as 10
     return min(np.random.choice(deck), 10)
 
@@ -28,8 +28,8 @@ class Player:
     def is_to_stick(self):
         return self.current_sum() >= self._stick_policy
 
-    def hit(self):
-        c = draw_card()
+    def draw_card(self):
+        c = random_card()
         self._current_sum += c
 
         if is_ace(c):
@@ -42,7 +42,7 @@ class Player:
     def is_bust(self):
         return self.current_sum() > 21
 
-    def is_natrual(self):
+    def is_natural(self):
         return self.current_sum() == 21 and self._num_ace == 1
 
     def current_sum(self):
@@ -54,8 +54,8 @@ class Dealer(Player):
         super(Dealer, self).__init__(stick_policy)
         self._showing_card = None
 
-    def hit(self):
-        c = super().hit()
+    def draw_card(self):
+        c = super().draw_card()
         if self._showing_card is None:
             self._showing_card = c
 
@@ -65,17 +65,17 @@ class Dealer(Player):
 
 def gen_episode(player, dealer):
     for _ in range(2):
-        dealer.hit()
-        player.hit()
+        dealer.draw_card()
+        player.draw_card()
 
     # End of episode when player has a natural
-    if player.is_natrual():
+    if player.is_natural():
         logging.debug("player has a natural")
         # player wins unless dealer has natural
-        return 0 if dealer.is_natrual() else 1
+        return 0 if dealer.is_natural() else 1
 
     while not player.is_to_stick():
-        player.hit()
+        player.draw_card()
 
         # End of episode when player goes bust (player loses)
         if player.is_bust():
@@ -84,7 +84,7 @@ def gen_episode(player, dealer):
 
     # Dealer's turn when player sticks
     while not dealer.is_to_stick():
-        dealer.hit()
+        dealer.draw_card()
 
         # End of episode when dealer goes bust
         if dealer.is_bust():
@@ -98,18 +98,18 @@ def gen_episode(player, dealer):
 
 
 def recover_states(player):
-    sum = 0
+    current_sum = 0
     usable_ace = False
     states = []
 
     for c in player._hands:
-        sum += c
+        current_sum += c
         if is_ace(c):
-            if sum + 10 <= 21:
+            if current_sum + 10 <= 21:
                 usable_ace = True
-                sum += 10
+                current_sum += 10
 
-        states.append((usable_ace and sum <= 21, sum))
+        states.append((usable_ace and current_sum <= 21, current_sum))
     return states
 
 
@@ -123,7 +123,7 @@ class AverageMeter:
         self._count += 1
 
     def avg(self):
-        return self._sum / self._count
+        return self._sum / self._count if self._count != 0 else 0
 
     def __repr__(self):
         return f"(sum={self._sum}, count={self._count})"
@@ -140,20 +140,18 @@ if __name__ == "__main__":
         player_states = recover_states(player)
         verbose = 1 in player._hands
 
-        visited_states = set()
-        for s in player_states:
+        for t, s in reversed(list(enumerate(player_states))):
             usable_ace, player_sum = s
             # only consider player_sum in [12, 21]
             if player_sum < 12 or player_sum > 21:
                 continue
 
-            new_s = (dealer.showing_card(), player_sum)
-
-            if usable_ace not in values:
-                values[usable_ace] = defaultdict()
-
             # First-visit method
-            if new_s not in visited_states:
+            if s not in player_states[:t]:
+                if usable_ace not in values:
+                    values[usable_ace] = defaultdict()
+
+                new_s = (dealer.showing_card(), player_sum)
                 values[usable_ace].setdefault(new_s, AverageMeter()).increase(G)
 
             if verbose:
@@ -185,12 +183,11 @@ if __name__ == "__main__":
         player_sums = np.linspace(12, 21, num=10, dtype=int)
 
         def get_estimate(ds, ps):
-            val = values[usable_ace].get((ds, ps))
-            avg_val = 0.0 if val is None else val.avg()
+            val = values[usable_ace].get((ds, ps)).avg()
             logging.info(
-                f"usable_ace={usable_ace} (dealer showing={ds}, player sum={ps}), value={val}, {avg_val}"
+                f"usable_ace={usable_ace} (dealer showing={ds}, player sum={ps}), value={val}"
             )
-            return avg_val
+            return val
 
         estimates = [
             [get_estimate(ds, ps) for ds in dealer_showings] for ps in player_sums

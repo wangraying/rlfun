@@ -14,7 +14,7 @@ class Agent:
 
     def possible_actions(self, state):
         # state: 1, 2, ..., 99
-        # actions: 1, 2, ..., min(s, 100 - s)
+        # actions: 1, 2, ..., min(s, 100 - s), exclude action 0 here for showing results better
         max_state = min(state, self._winning_capital - state)
         return range(1, max_state + 1)
 
@@ -64,12 +64,11 @@ def value_iteration(agent, eps=1e-12):
         sweeps += 1
 
         ret.append(new_values.copy())
+        print(f"End of sweep {sweeps} delta = {delta}")
     return ret
 
 
 if __name__ == "__main__":
-    fig = go.Figure()
-
     probs = [0.4, 0.25, 0.55]
     eps = [1e-8, 1e-5, 1e-4]
     fig = make_subplots(
