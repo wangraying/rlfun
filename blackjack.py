@@ -94,7 +94,7 @@ def gen_episode(player, dealer):
     if player.current_sum() == dealer.current_sum():
         return 0
 
-    return 1 if player.current_sum() > dealer.current_sum() else 0
+    return 1 if player.current_sum() > dealer.current_sum() else -1
 
 
 def recover_states(player):
