@@ -71,49 +71,37 @@ class ActionValue(dict):
     def update_value(self, state: State, action: Action, r: int):
         self[state.usable_ace][(state, action)].increase(r)
 
-    def show(self, states, idstr=""):
-        for state in states:
-            for action in action_space:
-                logging.info(
-                    f"{idstr}: sa=({state}, {action}), value={self.get_value(state, action)}"
-                )
 
-
-class Policy:
-    def __init__(self, stick_policy=20):
-        # generate initial policies for all states
-        self._policies = defaultdict()
-
+class Policy(dict):
+    def init(self, stick_policy=20):
         # initialize default policy for all states
         for state in state_space:
-            p = self._policies.setdefault(state.usable_ace, defaultdict())
+            p = self.setdefault(state.usable_ace, defaultdict())
             p[state] = Action.STICK if state.current_sum >= stick_policy else Action.HIT
+        return self
 
     def get_action(self, state: State) -> Action:
-        return self._policies[state.usable_ace][state]
+        return self[state.usable_ace][state]
 
     def improve(self, action_values: ActionValue, state: State):
         action = self.get_action(state)
 
+        improved = False
         for new_action in action_space:
             if action_values.get_avg(state, new_action) > action_values.get_avg(
                 state, action
             ):
                 action = new_action
-
-        self._policies[state.usable_ace][state] = action
-
-    def show(self, states, idstr=""):
-        for state in states:
-            action = self._policies[state.usable_ace][state]
-            logging.info(f"{idstr}: state={state}, action={action}")
+                improved = True
+        self[state.usable_ace][state] = action
+        return improved
 
 
 class Player:
     def __init__(self, stick_policy=20):
         self._fixed_policy = stick_policy
         self._current_sum = 0
-        self._usable_ace = False
+        self._num_ace = 0
         self._hands = []
 
     def is_to_stick(self):
@@ -126,9 +114,7 @@ class Player:
         self._current_sum = self._current_sum + card
 
         if is_ace(card):
-            if self._current_sum + 10 <= 21:
-                self._usable_ace = True
-                self._current_sum += 10
+            self._num_ace += 1
 
         self._hands.append(card)
         return card
@@ -137,17 +123,19 @@ class Player:
         return self.current_sum() > 21
 
     def is_natural(self):
-        return self.current_sum() == 21 and self._usable_ace
+        return self.current_sum() == 21 and self._num_ace > 0
 
     def current_sum(self):
-        return self._current_sum
+        return self._current_sum + 10 if self.usable_ace() else self._current_sum
 
     def usable_ace(self):
-        return self._usable_ace
+        return self._num_ace > 0 and (self._current_sum + 10 <= 21)
 
     def init(self, state: State):
-        self._current_sum = state.current_sum
-        self._usable_ace = state.usable_ace
+        self._current_sum = (
+            state.current_sum - 10 if state.usable_ace else state.current_sum
+        )
+        self._num_ace = int(state.usable_ace)
         self._hands.append(state.current_sum)  # for debug use
 
 
@@ -177,10 +165,10 @@ def gen_episode_with_es(player: Player, dealer: Dealer, policy: Policy):
     state_actions = [(initial_state, initial_action)]
 
     # End of episode when player has a natural
-    if player.is_natural():
-        logging.debug("player has a natural")
-        # player wins unless dealer has natural
-        return state_actions, (0 if dealer.is_natural() else 1)
+    # if player.is_natural():
+    #     logging.debug("player has a natural")
+    #     # player wins unless dealer has natural
+    #     return state_actions, (0 if dealer.is_natural() else 1)
 
     action = initial_action
     while action != Action.STICK:
@@ -235,15 +223,20 @@ class AverageMeter:
 
 
 if __name__ == "__main__":
-    num_episodes = 500000
+    last_improved = 0
+    num_episodes = 5000001
     action_values = ActionValue().init()
-    policy = Policy(stick_policy=20)
+    policy = Policy().init(stick_policy=20)
 
     for i in range(num_episodes):
+        if i - last_improved > 500000:
+            logging.info(f"Converged at episode #{i}")
+            break
+
         player = Player()
         dealer = Dealer(stick_policy=17)
         state_actions, G = gen_episode_with_es(player, dealer, policy)
-        verbose = False  # (state_actions[0][1] == Action.STICK) # 1 in player._hands
+        verbose = True
 
         for t, state_action in reversed(list(enumerate(state_actions))):
             s: State = state_action[0]
@@ -253,37 +246,43 @@ if __name__ == "__main__":
             if s.current_sum < 12 or s.current_sum > 21:
                 continue
 
-            assert s in state_space
-
             # First-visit method
-            if (s, a) not in state_action[:t]:
+            if (s, a) not in state_actions[:t]:
                 action_values.update_value(state=s, action=a, r=G)
 
                 if verbose:
-                    logging.debug(
-                        f"episode #{i}: players hands={player._hands}, sa=({s}, {a}),  G={G}"
+                    logging.debug(f"episode #{i}: t={t} sa=({s}, {a}),  G={G}")
+
+                if policy.improve(action_values, s):
+                    last_improved = i
+                    logging.info(
+                        f"episode #{i}: policy improved: state={s}, value={[action_values.get_avg(s, _a) for _a in action_space]}"
                     )
 
-                policy.improve(action_values, s)
-
         if verbose:
+            states, actions = zip(*state_actions)
             logging.debug(
                 f"After episode #{i}: dealer_hands={dealer._hands}, dealer_sum={dealer.current_sum()}, players hands={player._hands}, player_sum={player.current_sum()}, G={G}"
             )
-            states, _ = zip(*state_actions)
-            action_values.show(states, idstr=f"After episode #{i}")
-            policy.show(states, idstr=f"After episode #{i}")
 
-    action_values.show(state_space)
-    policy.show(state_space)
+            for (s, a) in state_actions:
+                logging.debug(
+                    f"After episode #{i}: s={s}, a={a}, value={[action_values.get_value(s, _a) for _a in action_space]}"
+                )
+
+        if i % 10000 == 0:
+            for state in state_space:
+                logging.info(
+                    f"After episode #{i}:state={state}, action_value={[action_values.get_avg(state, action) for action in action_space]}, policy={policy.get_action(state)}"
+                )
 
     fig = make_subplots(
         rows=2,
         cols=2,
         specs=[[{"is_3d": True}, {"is_3d": True}], [{}, {}]],
         subplot_titles=(
-            "v*(No Usable Ace)",
-            "v*(Usable Ace)",
+            "Optimal Value(No Usable Ace)",
+            "Optimal Value(Usable Ace)",
             "Optimal Policy(No Usable Ace)",
             "Optimal Policy(Usable Ace)",
         ),
@@ -306,9 +305,6 @@ if __name__ == "__main__":
                 for action in action_space
             ]
             val = max(values)
-            logging.info(
-                f"usable_ace={usable_ace} state={State(usable_ace=usable_ace, dealer_showing=ds, current_sum=ps)}, values={values}"
-            )
             return val
 
         estimates = [
@@ -361,9 +357,9 @@ if __name__ == "__main__":
                 policy.get_action(
                     State(usable_ace=usable_ace, dealer_showing=ds, current_sum=ps)
                 ).value
-                for ps in player_sums
+                for ds in dealer_showings
             ]
-            for ds in dealer_showings
+            for ps in player_sums
         ]
         fig.add_heatmap(
             x=dealer_showings,
