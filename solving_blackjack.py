@@ -3,6 +3,7 @@ from collections import defaultdict
 from plotly.subplots import make_subplots
 from collections import namedtuple
 from enum import Enum
+import argparse
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -11,9 +12,12 @@ logging.basicConfig(level=logging.INFO)
 deck = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
 
 
+card_rng = np.random.default_rng(13)
+
+
 def random_card():
     # All face cards count as 10
-    return min(np.random.choice(deck), 10)
+    return min(card_rng.choice(deck), 10)
 
 
 def is_ace(card):
@@ -66,7 +70,7 @@ class ActionValue(dict):
         return self[state.usable_ace][(state, action)].avg()
 
     def get_value(self, state: State, action: Action):
-        return self[state.usable_ace][(state, action)]
+        return self[state.usable_ace].get((state, action), 0.0)
 
     def update_value(self, state: State, action: Action, r: int):
         self[state.usable_ace][(state, action)].increase(r)
@@ -95,6 +99,24 @@ class Policy(dict):
                 improved = True
         self[state.usable_ace][state] = action
         return improved
+
+
+class SoftPolicy(Policy):
+    def init(self, stick_policy=20, eps=0.01, seed=47):
+        super().init(stick_policy)
+        self.eps = eps
+        self.rng = np.random.default_rng(seed)
+        return self
+
+    def get_action(self, state: State) -> Action:
+        action = self[state.usable_ace].get(state, Action.HIT)
+
+        p = self.rng.random()
+        if p < self.eps:
+            idx = self.rng.choice(len(action_space))
+            return action_space[idx]
+
+        return action
 
 
 class Player:
@@ -206,6 +228,60 @@ def gen_episode_with_es(player: Player, dealer: Dealer, policy: Policy):
     return state_actions, (1 if player.current_sum() > dealer.current_sum() else -1)
 
 
+def gen_episode(player: Player, dealer: Dealer, policy: SoftPolicy):
+    for _ in range(2):
+        dealer.draw_card()
+        player.draw_card()
+
+    # End of episode when player has a natural
+    if player.is_natural():
+        logging.debug("player has a natural")
+        # player wins unless dealer has natural
+        return [], (0 if dealer.is_natural() else 1)
+
+    state = State(
+        usable_ace=player.usable_ace(),
+        dealer_showing=dealer.showing_card(),
+        current_sum=player.current_sum(),
+    )
+    action = policy.get_action(state)
+    state_actions = [(state, action)]
+
+    while action != Action.STICK:
+        player.draw_card()
+
+        # End of episode when player goes bust (player loses)
+        if player.is_bust():
+            logging.debug(
+                f"player goes bust, {player._hands}, sum={player.current_sum()}"
+            )
+            return state_actions, -1
+
+        state = State(
+            usable_ace=player.usable_ace(),
+            dealer_showing=dealer.showing_card(),
+            current_sum=player.current_sum(),
+        )
+        action = policy.get_action(state)
+        state_actions.append((state, action))
+
+    # Dealer's turn when player sticks
+    while not dealer.is_to_stick():
+        dealer.draw_card()
+
+        # End of episode when dealer goes bust
+        if dealer.is_bust():
+            logging.debug(
+                f"dealer goes bust, {dealer._hands}, sum={dealer.current_sum()}"
+            )
+            return state_actions, 1
+
+    if player.current_sum() == dealer.current_sum():
+        return state_actions, 0
+
+    return state_actions, (1 if player.current_sum() > dealer.current_sum() else -1)
+
+
 class AverageMeter:
     def __init__(self):
         self._sum = 0
@@ -223,19 +299,32 @@ class AverageMeter:
 
 
 if __name__ == "__main__":
-    last_improved = 0
-    num_episodes = 5000001
-    action_values = ActionValue().init()
-    policy = Policy().init(stick_policy=20)
+    parser = argparse.ArgumentParser(description="Solving Blackjack Game")
+    parser.add_argument("--num_episodes", type=int, default=5000001)
+    parser.add_argument("--eps", type=float, default=0.0)
 
-    for i in range(num_episodes):
-        if i - last_improved > 500000:
+    args = parser.parse_args()
+    eps_soft_policy = args.eps > 0.0
+    if args.eps > 0.0:
+        policy = SoftPolicy().init(stick_policy=20, eps=args.eps)
+    else:
+        policy = Policy().init(stick_policy=20)
+
+    last_improved = 0
+    action_values = ActionValue().init()
+
+    for i in range(args.num_episodes):
+        if i - last_improved > 200000:
             logging.info(f"Converged at episode #{i}")
             break
 
         player = Player()
         dealer = Dealer(stick_policy=17)
-        state_actions, G = gen_episode_with_es(player, dealer, policy)
+        if args.eps > 0.0:
+            state_actions, G = gen_episode(player, dealer, policy)
+        else:
+            state_actions, G = gen_episode_with_es(player, dealer, policy)
+
         verbose = True
 
         for t, state_action in reversed(list(enumerate(state_actions))):
@@ -260,7 +349,6 @@ if __name__ == "__main__":
                     )
 
         if verbose:
-            states, actions = zip(*state_actions)
             logging.debug(
                 f"After episode #{i}: dealer_hands={dealer._hands}, dealer_sum={dealer.current_sum()}, players hands={player._hands}, player_sum={player.current_sum()}, G={G}"
             )
@@ -372,8 +460,12 @@ if __name__ == "__main__":
             opacity=0.5,
         )
 
+    if args.eps > 0.0:
+        title_text = "Solving Blackjack with MC Control (eps={})".format(args.eps)
+    else:
+        title_text = "Solving Blackjack with MC Exploring Starts"
     fig.update_layout(
-        title_text="Solving Blackjack with MC Exploring Starts".format(num_episodes),
+        title_text=title_text,
         scene=dict(
             xaxis_title="Player sum",
             yaxis_title="Dealer showing",
