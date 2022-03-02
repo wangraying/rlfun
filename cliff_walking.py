@@ -30,6 +30,9 @@ action_space = list(Action)
 
 
 def take_action(state: State, action: Action):
+    if is_cliff(state):
+        return State(0, 0), -100
+
     offset_x, offset_y = action.value
     x = max(0, state.x + offset_x)
     x = min(x, 3)
@@ -38,7 +41,7 @@ def take_action(state: State, action: Action):
     y = min(y, 11)
 
     next_state = State(x=x, y=y)
-    r = -100 if is_cliff(next_state) else -1
+    r = -1
     return next_state, r
 
 
@@ -93,11 +96,6 @@ def sarsa(policy, alpha=0.1, gamma=1.0):
     total_reward = 0
     while not is_goal(state):
         next_state, r = take_action(state, action)
-        if is_cliff(next_state):
-            # print("fall into cliff")
-            # reset to start
-            next_state = State(x=0, y=0)
-
         next_action = policy.get_action(next_state)
         val = action_values[(state, action)]
 
@@ -123,43 +121,66 @@ def q_learning(policy, alpha=0.1, gamma=1.0):
 
         action_values[(state, action)] = val + alpha * (
             r
-            + gamma * action_values[(next_state, policy.optimal_action(next_state))]
+            + gamma * max([action_values[(next_state, a)] for a in action_space])
             - val
         )
 
         state = next_state
-        if is_cliff(state):
-            # print("fall into cliff")
-            # reset to start
-            state = State(x=0, y=0)
         total_reward += r
     return total_reward
+
+
+def expected_sarsa(policy, alpha=1.0, gamma=1.0):
+    state = State(x=0, y=0)
+
+    total_reward = 0
+    while not is_goal(state):
+        action = policy.get_action(state)
+        next_state, r = take_action(state, action)
+        val = action_values[(state, action)]
+
+        action_values[(state, action)] = val + alpha * (
+            r
+            + gamma * sum([action_values[(next_state, a)] for a in action_space]) * 0.25
+            - val
+        )
+
+        state = next_state
+        total_reward += r
+    return total_reward
+
+
+def run_algorithm(algor_fn, alpha, gamma, num_episodes):
+    print(algor_fn, alpha, gamma, num_episodes)
+    init()
+    rewards = []
+    for i in range(num_episodes):
+        r = algor_fn(policy, alpha=alpha, gamma=gamma)
+        rewards.append(r)
+
+    path = optimal_path(policy)
+    return rewards, path
 
 
 if __name__ == "__main__":
 
     policy = SoftPolicy(eps=0.1)
-    num_episodes = 500
+    num_episodes = 1000
 
     # Sarsa algorithm
-    init()
-    sarsa_rewards = []
-    for i in range(num_episodes):
-        r = sarsa(policy, alpha=0.1, gamma=1.0)
-        sarsa_rewards.append(r)
+    sarsa_rewards, sarsa_path = run_algorithm(
+        sarsa, alpha=0.1, gamma=1.0, num_episodes=num_episodes
+    )
+    qlearning_rewards, qlearning_path = run_algorithm(
+        q_learning, alpha=0.1, gamma=1.0, num_episodes=num_episodes
+    )
+    exp_sarsa_rewards, exp_sarsa_path = run_algorithm(
+        expected_sarsa, alpha=1.0, gamma=1.0, num_episodes=num_episodes
+    )
 
-    sarsa_path = optimal_path(policy)
-    print(sarsa_path)
-
-    # Q-learning algorithm
-    init()
-    qlearning_rewards = []
-    for i in range(num_episodes):
-        r = q_learning(policy, alpha=0.1, gamma=1.0)
-        qlearning_rewards.append(r)
-    #
-    qlearning_path = optimal_path(policy)
-    print(qlearning_path)
+    print("Optimal path for Sarsa: ", sarsa_path)
+    print("Optimal path for Q-Learning: ", qlearning_path)
+    print("Optimal path for Expected Sarsa: ", exp_sarsa_path)
 
     fig = go.Figure()
     fig.add_trace(
@@ -168,6 +189,13 @@ if __name__ == "__main__":
     fig.add_trace(
         go.Scatter(
             x=list(range(10, num_episodes)), y=qlearning_rewards[10:], name="Q-Learning"
+        ),
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=list(range(10, num_episodes)),
+            y=exp_sarsa_rewards[10:],
+            name="Expected Sarsa",
         ),
     )
     fig.update_layout(
