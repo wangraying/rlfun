@@ -165,7 +165,7 @@ def run_algorithm(algor_fn, alpha, gamma, num_episodes):
 if __name__ == "__main__":
 
     policy = SoftPolicy(eps=0.1)
-    num_episodes = 1000
+    num_episodes = 500
 
     # Sarsa algorithm
     sarsa_rewards, sarsa_path = run_algorithm(
@@ -184,18 +184,24 @@ if __name__ == "__main__":
 
     fig = go.Figure()
     fig.add_trace(
-        go.Scatter(x=list(range(10, num_episodes)), y=sarsa_rewards[10:], name="Sarsa"),
-    )
-    fig.add_trace(
         go.Scatter(
-            x=list(range(10, num_episodes)), y=qlearning_rewards[10:], name="Q-Learning"
+            x=list(range(num_episodes))[10::1],
+            y=sarsa_rewards[10::1],
+            name="Sarsa (alpha=0.1)",
         ),
     )
     fig.add_trace(
         go.Scatter(
-            x=list(range(10, num_episodes)),
-            y=exp_sarsa_rewards[10:],
-            name="Expected Sarsa",
+            x=list(range(num_episodes))[10::1],
+            y=qlearning_rewards[10::1],
+            name="Q-Learning (alpha=0.1)",
+        ),
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=list(range(num_episodes))[10::1],
+            y=exp_sarsa_rewards[10::1],
+            name="Expected Sarsa (alpha=1.0)",
         ),
     )
     fig.update_layout(
@@ -204,4 +210,5 @@ if __name__ == "__main__":
         xaxis_title="Episodes",
         yaxis_title="Sum rewards during episodes",
     )
+    fig.update_yaxes(range=[0, -100])
     fig.show()
