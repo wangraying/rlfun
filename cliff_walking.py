@@ -186,21 +186,21 @@ if __name__ == "__main__":
         go.Scatter(
             x=list(range(num_episodes))[10::1],
             y=sarsa_rewards[10::1],
-            name="Sarsa (alpha=0.1)",
+            name="Sarsa (alpha=0.1, eps=0.1)",
         ),
     )
     fig.add_trace(
         go.Scatter(
             x=list(range(num_episodes))[10::1],
             y=qlearning_rewards[10::1],
-            name="Q-Learning (alpha=0.1)",
+            name="Q-Learning (alpha=0.1, eps=0.1)",
         ),
     )
     fig.add_trace(
         go.Scatter(
             x=list(range(num_episodes))[10::1],
             y=exp_sarsa_rewards[10::1],
-            name="Expected Sarsa (alpha=1.0)",
+            name="Expected Sarsa (alpha=1.0, eps=0.1)",
         ),
     )
     fig.update_layout(
@@ -208,6 +208,8 @@ if __name__ == "__main__":
         showlegend=True,
         xaxis_title="Episodes",
         yaxis_title="Sum rewards during episodes",
+        height=800,
+        width=1200,
     )
     fig.update_yaxes(range=[0, -100])
     fig.show()
