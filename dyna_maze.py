@@ -170,7 +170,7 @@ if __name__ == "__main__":
     fig = go.Figure()
     for n in [0, 5, 50]:
         exp_result = []
-        for _ in range(num_experiments):
+        for k in range(num_experiments):
             maze = DynaMaze(maze1, start=State(x=2, y=0))
             state_space = [
                 State(x, y) for x in range(DynaMaze.M) for y in range(DynaMaze.N)
@@ -183,6 +183,7 @@ if __name__ == "__main__":
                 alpha=alpha,
                 gamma=gamma,
                 n_planning=n,
+                seed=k,
             )
 
             time_steps = []
