@@ -30,18 +30,17 @@ action_space = list(Action)
 
 
 def take_action(state: State, action: Action):
-    if is_cliff(state):
-        return State(0, 0), -100
-
     offset_x, offset_y = action.value
-    x = max(0, state.x + offset_x)
-    x = min(x, 3)
-
-    y = max(0, state.y + offset_y)
-    y = min(y, 11)
+    x = min(max(0, state.x + offset_x), 3)
+    y = min(max(0, state.y + offset_y), 11)
 
     next_state = State(x=x, y=y)
-    r = -1
+
+    if is_cliff(next_state):
+        r = -100
+        next_state = State(x=0, y=0)
+    else:
+        r = -1
     return next_state, r
 
 
@@ -96,6 +95,7 @@ def sarsa(policy, alpha=0.1, gamma=1.0):
     total_reward = 0
     while not is_goal(state):
         next_state, r = take_action(state, action)
+
         next_action = policy.get_action(next_state)
         val = action_values[(state, action)]
 
@@ -124,7 +124,6 @@ def q_learning(policy, alpha=0.1, gamma=1.0):
             + gamma * max([action_values[(next_state, a)] for a in action_space])
             - val
         )
-
         state = next_state
         total_reward += r
     return total_reward
@@ -144,7 +143,6 @@ def expected_sarsa(policy, alpha=1.0, gamma=1.0):
             + gamma * sum([action_values[(next_state, a)] for a in action_space]) * 0.25
             - val
         )
-
         state = next_state
         total_reward += r
     return total_reward
@@ -157,6 +155,7 @@ def run_algorithm(algor_fn, alpha, gamma, num_episodes):
     for i in range(num_episodes):
         r = algor_fn(policy, alpha=alpha, gamma=gamma)
         rewards.append(r)
+        # print(f"episode #{i}, reward={r}")
 
     path = optimal_path(policy)
     return rewards, path
