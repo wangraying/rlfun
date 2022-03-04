@@ -4,6 +4,7 @@ from collections import namedtuple, defaultdict
 import random
 import plotly.graph_objects as go
 
+random.seed(47)
 maze1 = [
     [0, 0, 0, 0, 0, 0, 0, 1, 0],
     [0, 0, 1, 0, 0, 0, 0, 1, 0],
@@ -92,6 +93,9 @@ class DynaQ:
             print(
                 f"state={s}, values={[self.action_values[s][a] for a in self.action_space]}"
             )
+
+    def get_action_values(self, state):
+        return [self.action_values[state][a] for a in self.action_space]
 
     def get_action(self, state):
         p = self.rng.random()
