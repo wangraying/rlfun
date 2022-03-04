@@ -106,8 +106,8 @@ if __name__ == "__main__":
         "seed": 47,
     }
     dyna_q = DynaQ(state_space, action_space, **kwargs)
-    dyna_q_plus1 = DynaQPlus(state_space, action_space, kappa=1e-3, **kwargs)
-    dyna_q_plus2 = DynaQPlus(state_space, action_space, kappa=1e-4, **kwargs)
+    dyna_q_plus1 = DynaQPlus(state_space, action_space, kappa=1e-2, **kwargs)
+    dyna_q_plus2 = DynaQPlus(state_space, action_space, kappa=1e-3, **kwargs)
 
     exp_result = []
     for agent in [dyna_q, dyna_q_plus1, dyna_q_plus2]:
