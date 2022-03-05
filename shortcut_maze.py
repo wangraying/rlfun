@@ -1,5 +1,4 @@
 import random
-import math
 import plotly.graph_objects as go
 from dyna_maze import Action, State, DynaMaze, DynaQ
 from blocking_maze import DynaQPlus
@@ -21,70 +20,6 @@ maze2 = [
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
 ]
-
-
-class DynaQPlus(DynaQ):
-    def __init__(
-        self,
-        state_space,
-        action_space,
-        eps=0.1,
-        alpha=0.1,
-        gamma=0.95,
-        n_planning=0,
-        kappa=0.01,
-        seed=47,
-    ):
-        super(DynaQPlus, self).__init__(
-            state_space,
-            action_space,
-            eps=eps,
-            alpha=alpha,
-            gamma=gamma,
-            n_planning=n_planning,
-            seed=seed,
-        )
-        self.kappa = kappa
-        self.update_cnt = 0
-
-        # initialize default model, so that those actions that have never been tried can be
-        # considered in the planning step, they transfer to themselves with a reward of 0
-        for state in state_space:
-            for action in action_space:
-                # (reward, next_state, last updated step)
-                self.model[(state, action)] = (
-                    0,
-                    state,
-                    0,
-                )
-
-    def q_learning(self, state, action, next_state, reward: int, bonus: float):
-        # bonus for long-untried actions
-        td_error = (
-            reward
-            + bonus
-            + self.gamma
-            * max([self.action_values[next_state][a] for a in self.action_space])
-            - self.action_values[state][action]
-        )
-        self.action_values[state][action] += self.alpha * td_error
-
-    def update(self, state, action, next_state, reward: int):
-        self.q_learning(state, action, next_state, reward, bonus=0.0)
-        self.model[(state, action)] = (reward, next_state, self.update_cnt)
-
-        for _ in range(self.n_planning):
-            (s, a), (r, ns, _) = random.choice(list(self.model.items()))
-
-            # calculate bonus reward for simulated experiences
-            _, _, last_updated = self.model[(s, a)]
-            bonus = self.kappa * math.sqrt(self.update_cnt - last_updated)
-            self.q_learning(s, a, next_state=ns, reward=r, bonus=bonus)
-
-        self.update_cnt += 1
-
-    def __repr__(self):
-        return self.__class__.__name__ + f"(kappa={self.kappa})"
 
 
 if __name__ == "__main__":

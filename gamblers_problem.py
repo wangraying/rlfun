@@ -75,19 +75,15 @@ if __name__ == "__main__":
         rows=3,
         cols=2,
         specs=[[{}, {}], [{}, {}], [{}, {}]],
-        subplot_titles=("ph=0.4", "ph=0.4", "ph=0.25", "ph=0.25", "ph=0.55", "ph=0.55"),
+        subplot_titles=(
+            "prob_heads =0.4",
+            "prob_heads=0.4",
+            "prob_heads=0.25",
+            "prob_heads=0.25",
+            "prob_heads=0.55",
+            "prob_heads=0.55",
+        ),
     )
-
-    selected_colors = [
-        "red",
-        "green",
-        "yellow",
-        "blue",
-        "cyan",
-        "purple",
-        "goldenrod",
-        "magenta",
-    ]
 
     for i in range(len(probs)):
         prob_win = probs[i]
@@ -100,10 +96,6 @@ if __name__ == "__main__":
                     x=list(agent.possible_states()),
                     y=value[1:-1],
                     name=f"sweep {sweep}",
-                    line=dict(
-                        color=selected_colors[sweep % len(selected_colors)],
-                        width=0.5,
-                    ),
                 ),
                 row=i + 1,
                 col=1,
@@ -114,17 +106,17 @@ if __name__ == "__main__":
             go.Scatter(
                 x=list(final_policy.keys()),
                 y=list(final_policy.values()),
-                line=dict(color="firebrick", width=0.5),
+                line=dict(color="firebrick"),
             ),
             row=i + 1,
             col=2,
         )
 
     for row in [1, 2, 3]:
-        fig.update_xaxes(title_text="Capital", row=row, col=1)
-        fig.update_xaxes(title_text="Capital", row=row, col=2)
-        fig.update_yaxes(title_text="Value Estimates", row=row, col=1)
-        fig.update_yaxes(title_text="Final Policy(stake)", row=row, col=2)
+        fig.update_xaxes(title_text="Capital", row=row, col=1, dtick=25)
+        fig.update_xaxes(title_text="Capital", row=row, col=2, dtick=25)
+        fig.update_yaxes(title_text="Value Estimates", row=row, col=1, dtick=0.2)
+        fig.update_yaxes(title_text="Final Policy(stake)", row=row, col=2, dtick=10)
 
     fig.update_layout(title=f"Gambler's Problem", showlegend=False)
 

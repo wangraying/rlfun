@@ -20,22 +20,25 @@ def is_ace(card):
 
 class Player:
     def __init__(self, stick_policy=20):
-        self._stick_policy = stick_policy
+        self._fixed_policy = stick_policy
         self._current_sum = 0
         self._num_ace = 0
         self._hands = []
 
     def is_to_stick(self):
-        return self.current_sum() >= self._stick_policy
+        return self.current_sum() >= self._fixed_policy
 
-    def draw_card(self):
-        c = random_card()
-        self._current_sum += c
+    def draw_card(self, card=None) -> int:
+        if card is None:
+            card = random_card()
 
-        if is_ace(c):
+        self._current_sum = self._current_sum + card
+
+        if is_ace(card):
             self._num_ace += 1
-        self._hands.append(c)
-        return c
+
+        self._hands.append(card)
+        return card
 
     def is_bust(self):
         return self.current_sum() > 21
@@ -49,16 +52,22 @@ class Player:
     def usable_ace(self):
         return self._num_ace > 0 and (self._current_sum + 10 <= 21)
 
+    def init(self, num_ace: int, current_sum: int):
+        self._current_sum = current_sum - 10 if num_ace else current_sum
+        self._num_ace = num_ace
+        self._hands.append(current_sum)  # for debug use
+
 
 class Dealer(Player):
     def __init__(self, stick_policy=17):
         super(Dealer, self).__init__(stick_policy)
         self._showing_card = None
 
-    def draw_card(self):
-        c = super().draw_card()
+    def draw_card(self, card=None) -> int:
+        card = super().draw_card(card)
         if self._showing_card is None:
-            self._showing_card = c
+            self._showing_card = card
+        return card
 
     def showing_card(self):
         return self._showing_card
